@@ -1,0 +1,18 @@
+{
+  "dataset": "n200",
+  "seed": 42,
+  "n_blocks": 200,
+  "total_block_area": 175696,
+  "outline_side": 449.5001668520269,
+  "effective_integer_coordinate_limit": 449,
+  "outline_area": 202050.40000000002,
+  "realized_dead_space_ratio": 0.15000000000000013,
+  "requested_dead_space_ratio": 0.15,
+  "packed_width": 449,
+  "packed_height": 448,
+  "offset_x": 0.0,
+  "offset_y": 0.0,
+  "feasible": true,
+  "overflow": 0.0,
+  "total_hpwl": 444068.5
+}

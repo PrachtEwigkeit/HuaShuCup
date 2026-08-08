@@ -1,0 +1,21 @@
+# 第一版配置：优先验证正确性和完整流程；正式冲榜时再加大搜索量。
+seed: 42
+
+init:
+  method: area_sorted   # random | area_sorted
+
+sa:
+  initial_temperature: 0.05
+  final_temperature: 0.00005
+  alpha: 0.90
+  moves_per_temp_factor: 2.0
+  max_stagnant_levels: 25
+  shape_scale: 0.01
+
+operators:
+  rotate: 0.30
+  swap: 0.35
+  move: 0.35
+
+multi_start:
+  seeds: [11, 23, 37, 41, 53]

@@ -1,0 +1,16 @@
+seed: 42
+init:
+  method: area_sorted
+sa:
+  initial_temperature: 0.02
+  final_temperature: 0.005
+  alpha: 0.50
+  moves_per_temp_factor: 0.2
+  max_stagnant_levels: 3
+  shape_scale: 0.01
+operators:
+  rotate: 0.30
+  swap: 0.35
+  move: 0.35
+multi_start:
+  seeds: [42]

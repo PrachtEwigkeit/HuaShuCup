@@ -1,0 +1,12 @@
+{
+  "dataset": "n100",
+  "seed": 42,
+  "n_blocks": 100,
+  "total_block_area": 179501,
+  "W": 448,
+  "H": 478,
+  "area": 214144,
+  "aspect_ratio": 1.0669642857142858,
+  "utilization": 0.838225679916318,
+  "dead_space_ratio": 0.1929961392972741
+}

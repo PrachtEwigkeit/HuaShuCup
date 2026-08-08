@@ -1,0 +1,29 @@
+# 问题2/3正式配置：固定轮廓 HPWL 与最小死区比搜索。
+seed: 42
+dead_space_ratio: 0.15
+
+spectral:
+  variants: 8
+  spread_strength: 0.16
+
+sa:
+  initial_temperature: 0.20
+  final_temperature: 0.001
+  alpha: 0.91
+  moves_per_temp_factor: 2.5
+  max_stagnant_levels: 24
+  outline_penalty: 80.0
+  infeasible_hpwl_weight: 0.02
+
+operators:
+  rotate: 0.24
+  swap: 0.25
+  move: 0.31
+  guided: 0.20
+
+q3_search:
+  terminals_inside_outline: true
+  probe_lower_bound: true
+  spectral_variants: 5
+  attempts_per_side: 2
+  refine_attempts: 2
