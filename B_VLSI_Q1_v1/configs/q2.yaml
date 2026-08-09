@@ -3,27 +3,38 @@ seed: 42
 dead_space_ratio: 0.15
 
 spectral:
-  variants: 8
+  variants: 16
   spread_strength: 0.16
+  spread_strength_candidates: [0.08, 0.12, 0.16, 0.20, 0.24]
+  axis_variants: 8
+  reweight_iterations: 1
+
+elastic_lp:
+  enabled: true
+  time_limit_seconds: 20.0
 
 sa:
   initial_temperature: 0.20
   final_temperature: 0.001
-  alpha: 0.91
-  moves_per_temp_factor: 2.5
-  max_stagnant_levels: 24
+  alpha: 0.90
+  moves_per_temp_factor: 1.5
+  max_stagnant_levels: 8
+  adaptive_operators: true
   outline_penalty: 80.0
   infeasible_hpwl_weight: 0.02
 
 operators:
-  rotate: 0.24
-  swap: 0.25
-  move: 0.31
-  guided: 0.20
+  rotate: 0.20
+  swap: 0.20
+  move: 0.10
+  guided: 0.35
+  row: 0.15
 
 q3_search:
-  terminals_inside_outline: true
+  terminals_inside_outline: false
   probe_lower_bound: true
-  spectral_variants: 5
-  attempts_per_side: 2
-  refine_attempts: 2
+  spectral_variants: 16
+  attempts_per_side: 1
+  boundary_attempts: 3
+  boundary_lp_enabled: false
+  refine_attempts: 1

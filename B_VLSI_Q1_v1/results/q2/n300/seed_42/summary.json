@@ -8,12 +8,15 @@
   "outline_area": 314145.50000000006,
   "realized_dead_space_ratio": 0.15000000000000013,
   "requested_dead_space_ratio": 0.15,
-  "packed_width": 560,
-  "packed_height": 560,
+  "packed_width": 560.486841951,
+  "packed_height": 560.486841951,
   "offset_x": 0.0,
-  "offset_y": 0.48684195081693815,
+  "offset_y": 0.0,
   "feasible": true,
   "overflow": 0.0,
-  "total_hpwl": 627811.565790246,
-  "solve_time_seconds": 44.592680799999926
+  "total_hpwl": 626129.7631609836,
+  "lp_applied": true,
+  "hpwl_before_lp": 627052.5263160984,
+  "lp_hpwl_improvement": 922.763155114837,
+  "solve_time_seconds": 20.1436377
 }

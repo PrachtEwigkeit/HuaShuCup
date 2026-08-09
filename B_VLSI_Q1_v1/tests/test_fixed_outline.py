@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import BlockData, load_blocks
+from src.elastic_lp import optimize_fixed_topology_lp
 from src.fixed_outline import evaluate_fixed_outline, optimal_translation, total_hpwl
 from src.netlist import NetlistData, load_netlist
 from src.q3_search import integer_side_lower_bound
@@ -44,12 +45,44 @@ class TestFixedOutline(unittest.TestCase):
     def test_terminal_lower_bounds(self):
         raw = ROOT / "data" / "raw"
         expected = {"n100": 444, "n200": 438, "n300": 548}
+        area_expected = {"n100": 424, "n200": 420, "n300": 523}
         for dataset, side in expected.items():
             blocks = load_blocks(raw / f"{dataset}.blocks")
             netlist = load_netlist(
                 raw / f"{dataset}.nets", raw / f"{dataset}.pl", blocks
             )
             self.assertEqual(integer_side_lower_bound(blocks, netlist, True), side)
+            self.assertEqual(
+                integer_side_lower_bound(blocks, netlist), area_expected[dataset]
+            )
+
+    def test_elastic_lp_redistributes_whitespace(self):
+        layout = Layout(
+            x=np.asarray([0.0, 2.0]),
+            y=np.asarray([0.0, 0.0]),
+            width=np.asarray([2, 2], dtype=np.int32),
+            height=np.asarray([2, 2], dtype=np.int32),
+            rotated=np.asarray([False, False]),
+            W=4.0,
+            H=2.0,
+            area=8.0,
+        )
+        netlist = NetlistData(
+            nets=(np.asarray([0, 2], dtype=np.int32),),
+            terminal_names=("p0",),
+            terminal_x=np.asarray([9.0]),
+            terminal_y=np.asarray([1.0]),
+            n_blocks=2,
+            block_to_nets=(
+                np.asarray([0], dtype=np.int32),
+                np.asarray([], dtype=np.int32),
+            ),
+        )
+        before = total_hpwl(layout, netlist)
+        result = optimize_fixed_topology_lp(layout, netlist, outline_side=10)
+        self.assertTrue(result.success)
+        after = total_hpwl(result.layout, netlist)
+        self.assertLess(after, before)
 
 
 if __name__ == "__main__":

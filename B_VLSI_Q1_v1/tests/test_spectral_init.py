@@ -10,7 +10,12 @@ sys.path.insert(0, str(ROOT))
 from src.bstar_pack import pack_bstar
 from src.data import BlockData
 from src.netlist import NetlistData
-from src.spectral_init import anchored_spectral_embedding, create_spectral_shelf_tree
+from src.spectral_init import (
+    anchored_spectral_embedding,
+    create_spectral_corner_tree,
+    create_spectral_shelf_tree,
+    spectral_embedding_variant,
+)
 from src.validate import validate_layout, validate_tree
 
 
@@ -38,7 +43,12 @@ class TestSpectralInit(unittest.TestCase):
                 np.asarray([2], dtype=np.int32),
             ),
         )
-        embedding = anchored_spectral_embedding(blocks, netlist, outline_side=10)
+        embedding = anchored_spectral_embedding(
+            blocks, netlist, outline_side=10, reweight_iterations=1
+        )
+        embedding = spectral_embedding_variant(
+            embedding, blocks, outline_side=10, spread_strength=0.12, axis_mode=5
+        )
         state = create_spectral_shelf_tree(
             blocks, embedding, 10, np.random.default_rng(3)
         )
@@ -47,6 +57,11 @@ class TestSpectralInit(unittest.TestCase):
         validate_layout(blocks, layout, check_pairs=True)
         self.assertTrue(np.all(np.isfinite(embedding.x)))
         self.assertTrue(np.all(np.isfinite(embedding.y)))
+        corner_state = create_spectral_corner_tree(
+            blocks, embedding, 10, np.random.default_rng(4)
+        )
+        validate_tree(corner_state)
+        validate_layout(blocks, pack_bstar(blocks, corner_state), check_pairs=True)
 
 
 if __name__ == "__main__":

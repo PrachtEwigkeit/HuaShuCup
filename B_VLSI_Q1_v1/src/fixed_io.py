@@ -5,9 +5,12 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
+
 from .data import BlockData
 from .fixed_outline import FixedOutlineSolution, FixedSAHistory
 from .q3_search import MinimumOutlineResult
+from .structures import BStarTreeState
 
 
 def _clean_number(value: float) -> int | float:
@@ -41,6 +44,32 @@ def save_fixed_layout_csv(
                     int(bool(layout.rotated[i])),
                 ]
             )
+
+
+def save_bstar_state(state: BStarTreeState, path: str | Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        root=np.asarray([state.root], dtype=np.int32),
+        parent=state.parent,
+        left=state.left,
+        right=state.right,
+        module_at_node=state.module_at_node,
+        rotated=state.rotated,
+    )
+
+
+def load_bstar_state(path: str | Path) -> BStarTreeState:
+    with np.load(Path(path), allow_pickle=False) as data:
+        return BStarTreeState(
+            root=int(data["root"][0]),
+            parent=data["parent"].astype(np.int32, copy=True),
+            left=data["left"].astype(np.int32, copy=True),
+            right=data["right"].astype(np.int32, copy=True),
+            module_at_node=data["module_at_node"].astype(np.int32, copy=True),
+            rotated=data["rotated"].astype(bool, copy=True),
+        )
 
 
 def save_fixed_history_csv(history: FixedSAHistory, path: str | Path) -> None:
@@ -94,13 +123,20 @@ def fixed_summary_dict(
             solution.outline_side**2 / blocks.total_area - 1.0
         ),
         "requested_dead_space_ratio": requested_dead_space_ratio,
-        "packed_width": int(solution.layout.W),
-        "packed_height": int(solution.layout.H),
+        "packed_width": _clean_number(float(solution.layout.W)),
+        "packed_height": _clean_number(float(solution.layout.H)),
         "offset_x": float(score.offset_x),
         "offset_y": float(score.offset_y),
         "feasible": bool(score.feasible),
         "overflow": float(score.overflow),
         "total_hpwl": float(score.hpwl),
+        "lp_applied": bool(solution.lp_applied),
+        "hpwl_before_lp": solution.hpwl_before_lp,
+        "lp_hpwl_improvement": (
+            float(solution.hpwl_before_lp - score.hpwl)
+            if solution.hpwl_before_lp is not None
+            else None
+        ),
     }
 
 

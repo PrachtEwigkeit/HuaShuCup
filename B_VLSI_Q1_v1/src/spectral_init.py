@@ -15,6 +15,8 @@ class SpectralEmbedding:
     y: np.ndarray
     harmonic_x: np.ndarray
     harmonic_y: np.ndarray
+    fiedler_a: np.ndarray
+    fiedler_b: np.ndarray
 
 
 def _normalized_fiedler_vectors(adjacency: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -40,12 +42,82 @@ def _standardize(values: np.ndarray) -> np.ndarray:
     return centered / scale
 
 
+def _clip_embedding_axis(
+    values: np.ndarray,
+    blocks: BlockData,
+    outline_side: float,
+) -> np.ndarray:
+    half_min = np.minimum(blocks.width, blocks.height).astype(float) / 2.0
+    return np.clip(values, half_min, outline_side - half_min)
+
+
+def _reweighted_axis_solve(
+    current: np.ndarray,
+    terminal_axis: np.ndarray,
+    netlist: NetlistData,
+    outline_side: float,
+    regularization: float,
+) -> np.ndarray:
+    """用网络当前包围盒的极端引脚构造一轮 Bound-to-Bound IRLS。"""
+
+    n = netlist.n_blocks
+    adjacency = np.zeros((n, n), dtype=np.float64)
+    anchor_degree = np.zeros(n, dtype=np.float64)
+    rhs = np.zeros(n, dtype=np.float64)
+    all_axis = np.concatenate([current.astype(float, copy=False), terminal_axis])
+
+    for net in netlist.nets:
+        degree = len(net)
+        if degree <= 1:
+            continue
+        vertices = [int(v) for v in net]
+        block_vertices = [v for v in vertices if v < n]
+        terminal_vertices = [v - n for v in vertices if v >= n]
+        if not block_vertices:
+            continue
+
+        values = np.asarray([all_axis[v] for v in vertices], dtype=float)
+        extremes = {vertices[int(np.argmin(values))], vertices[int(np.argmax(values))]}
+        base = 1.0 / float(degree - 1)
+
+        # 保留较弱的全端口锚定项，避免极端点切换时布局方向剧烈翻转。
+        for i in block_vertices:
+            for terminal in terminal_vertices:
+                weight = 0.15 * base
+                anchor_degree[i] += weight
+                rhs[i] += weight * float(terminal_axis[terminal])
+
+        for i in block_vertices:
+            for target in extremes:
+                if target == i:
+                    continue
+                distance = max(abs(float(all_axis[i] - all_axis[target])), 1.0)
+                weight = base / distance
+                if target < n:
+                    adjacency[i, target] += weight
+                    adjacency[target, i] += weight
+                else:
+                    terminal = target - n
+                    anchor_degree[i] += weight
+                    rhs[i] += weight * float(terminal_axis[terminal])
+
+    laplacian = np.diag(adjacency.sum(axis=1)) - adjacency
+    scale = max(float(np.mean(np.diag(laplacian) + anchor_degree)), 1.0)
+    ridge = regularization * scale
+    system = laplacian + np.diag(anchor_degree) + ridge * np.eye(n)
+    center = outline_side / 2.0
+    solved = np.linalg.solve(system, rhs + ridge * center)
+    # 阻尼可减少连续两轮极端引脚发生交换时的振荡。
+    return 0.5 * current + 0.5 * solved
+
+
 def anchored_spectral_embedding(
     blocks: BlockData,
     netlist: NetlistData,
     outline_side: float,
     spread_strength: float = 0.16,
     regularization: float = 1e-3,
+    reweight_iterations: int = 0,
 ) -> SpectralEmbedding:
     """计算端口锚定的谱坐标。
 
@@ -85,6 +157,22 @@ def anchored_spectral_embedding(
     harmonic_x = np.linalg.solve(system, rhs_x + ridge * center)
     harmonic_y = np.linalg.solve(system, rhs_y + ridge * center)
 
+    for _ in range(max(0, int(reweight_iterations))):
+        harmonic_x = _reweighted_axis_solve(
+            harmonic_x,
+            netlist.terminal_x,
+            netlist,
+            outline_side,
+            regularization,
+        )
+        harmonic_y = _reweighted_axis_solve(
+            harmonic_y,
+            netlist.terminal_y,
+            netlist,
+            outline_side,
+            regularization,
+        )
+
     fiedler_a, fiedler_b = _normalized_fiedler_vectors(adjacency)
     fiedler_a = _standardize(fiedler_a)
     fiedler_b = _standardize(fiedler_b)
@@ -98,10 +186,47 @@ def anchored_spectral_embedding(
     x = harmonic_x + spread_strength * outline_side * fiedler_a
     y = harmonic_y + spread_strength * outline_side * fiedler_b
 
-    half_min = np.minimum(blocks.width, blocks.height).astype(float) / 2.0
-    x = np.clip(x, half_min, outline_side - half_min)
-    y = np.clip(y, half_min, outline_side - half_min)
-    return SpectralEmbedding(x=x, y=y, harmonic_x=harmonic_x, harmonic_y=harmonic_y)
+    x = _clip_embedding_axis(x, blocks, outline_side)
+    y = _clip_embedding_axis(y, blocks, outline_side)
+    return SpectralEmbedding(
+        x=x,
+        y=y,
+        harmonic_x=harmonic_x,
+        harmonic_y=harmonic_y,
+        fiedler_a=fiedler_a,
+        fiedler_b=fiedler_b,
+    )
+
+
+def spectral_embedding_variant(
+    base: SpectralEmbedding,
+    blocks: BlockData,
+    outline_side: float,
+    spread_strength: float,
+    axis_mode: int,
+) -> SpectralEmbedding:
+    """共享调和解和特征向量，生成交换方向/翻转符号的谱坐标候选。"""
+
+    mode = int(axis_mode) % 8
+    swap_axes = mode >= 4
+    sign_mode = mode % 4
+    sign_x = -1.0 if sign_mode & 1 else 1.0
+    sign_y = -1.0 if sign_mode & 2 else 1.0
+    fx, fy = (
+        (base.fiedler_b, base.fiedler_a)
+        if swap_axes
+        else (base.fiedler_a, base.fiedler_b)
+    )
+    x = base.harmonic_x + sign_x * spread_strength * outline_side * fx
+    y = base.harmonic_y + sign_y * spread_strength * outline_side * fy
+    return SpectralEmbedding(
+        x=_clip_embedding_axis(x, blocks, outline_side),
+        y=_clip_embedding_axis(y, blocks, outline_side),
+        harmonic_x=base.harmonic_x,
+        harmonic_y=base.harmonic_y,
+        fiedler_a=base.fiedler_a,
+        fiedler_b=base.fiedler_b,
+    )
 
 
 def _choose_rows(
@@ -269,6 +394,83 @@ def create_spectral_shelf_tree(
 
     return BStarTreeState(
         root=int(row_roots[0]),
+        parent=parent,
+        left=left,
+        right=right,
+        module_at_node=module_at_node,
+        rotated=rotated,
+    )
+
+
+def create_spectral_corner_tree(
+    blocks: BlockData,
+    embedding: SpectralEmbedding,
+    outline_side: int,
+    rng: np.random.Generator,
+    variant: int = 0,
+) -> BStarTreeState:
+    """按谱目标坐标选择 B*-Tree 空孩子槽，形成角点式候选拓扑。"""
+
+    n = blocks.n
+    if n == 0:
+        raise ValueError("模块集合不能为空")
+    if variant % 3 == 0:
+        rotated = blocks.width < blocks.height
+    elif variant % 3 == 1:
+        rotated = blocks.width > blocks.height
+    else:
+        rotated = (rng.random(n) < 0.5)
+
+    actual_w = np.where(rotated, blocks.height, blocks.width).astype(float)
+    actual_h = np.where(rotated, blocks.width, blocks.height).astype(float)
+    normalized_x = embedding.x / max(1.0, float(outline_side))
+    normalized_y = embedding.y / max(1.0, float(outline_side))
+    jitter = rng.normal(0.0, 1e-4, n)
+    order = np.lexsort((normalized_x + jitter, normalized_y + jitter))
+
+    parent = np.full(n, -1, dtype=np.int32)
+    left = np.full(n, -1, dtype=np.int32)
+    right = np.full(n, -1, dtype=np.int32)
+    module_at_node = np.empty(n, dtype=np.int32)
+    module_at_node[0] = int(order[0])
+    placed_nodes = [0]
+
+    for node, raw_block in enumerate(order[1:], start=1):
+        block = int(raw_block)
+        choices: list[tuple[float, int, int]] = []
+        for candidate_parent in placed_nodes:
+            parent_block = int(module_at_node[candidate_parent])
+            if int(left[candidate_parent]) == -1:
+                expected_x = embedding.x[parent_block] + (
+                    actual_w[parent_block] + actual_w[block]
+                ) / 2.0
+                expected_y = embedding.y[parent_block]
+                score = (
+                    abs(float(embedding.x[block] - expected_x))
+                    + 0.6 * abs(float(embedding.y[block] - expected_y))
+                ) / max(1.0, outline_side)
+                choices.append((score, candidate_parent, 0))
+            if int(right[candidate_parent]) == -1:
+                expected_x = embedding.x[parent_block]
+                expected_y = embedding.y[parent_block] + (
+                    actual_h[parent_block] + actual_h[block]
+                ) / 2.0
+                score = (
+                    0.6 * abs(float(embedding.x[block] - expected_x))
+                    + abs(float(embedding.y[block] - expected_y))
+                ) / max(1.0, outline_side)
+                choices.append((score, candidate_parent, 1))
+        _, chosen_parent, side = min(choices, key=lambda item: item[0])
+        module_at_node[node] = block
+        parent[node] = chosen_parent
+        if side == 0:
+            left[chosen_parent] = node
+        else:
+            right[chosen_parent] = node
+        placed_nodes.append(node)
+
+    return BStarTreeState(
+        root=0,
         parent=parent,
         left=left,
         right=right,

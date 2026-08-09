@@ -78,20 +78,24 @@ def validate_layout(blocks: BlockData, layout: Layout, check_pairs: bool = True)
         if actual not in (original, rotated):
             raise AssertionError(f"模块 {blocks.names[i]} 尺寸错误: {actual}")
 
-    W = int(np.max(layout.x.astype(np.int64) + layout.width.astype(np.int64)))
-    H = int(np.max(layout.y.astype(np.int64) + layout.height.astype(np.int64)))
-    if W != layout.W or H != layout.H or W * H != layout.area:
+    W = float(np.max(layout.x.astype(float) + layout.width.astype(float)))
+    H = float(np.max(layout.y.astype(float) + layout.height.astype(float)))
+    if (
+        not np.isclose(W, float(layout.W), atol=1e-7)
+        or not np.isclose(H, float(layout.H), atol=1e-7)
+        or not np.isclose(W * H, float(layout.area), atol=1e-6)
+    ):
         raise AssertionError("W/H/area 与模块坐标不一致")
 
-    if layout.area < blocks.total_area:
+    if float(layout.area) + 1e-7 < blocks.total_area:
         raise AssertionError("外包面积小于模块总面积，必有错误")
 
     if check_pairs:
         for i in range(n):
             for j in range(i + 1, n):
                 if _rects_overlap(
-                    int(layout.x[i]), int(layout.y[i]), int(layout.width[i]), int(layout.height[i]),
-                    int(layout.x[j]), int(layout.y[j]), int(layout.width[j]), int(layout.height[j]),
+                    float(layout.x[i]), float(layout.y[i]), float(layout.width[i]), float(layout.height[i]),
+                    float(layout.x[j]), float(layout.y[j]), float(layout.width[j]), float(layout.height[j]),
                 ):
                     raise AssertionError(
                         f"检测到重叠: {blocks.names[i]} 与 {blocks.names[j]}"

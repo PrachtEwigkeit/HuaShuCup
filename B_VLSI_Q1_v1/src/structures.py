@@ -37,9 +37,9 @@ class Layout:
     width: np.ndarray
     height: np.ndarray
     rotated: np.ndarray
-    W: int
-    H: int
-    area: int
+    W: int | float
+    H: int | float
+    area: int | float
 
 
 @dataclass(frozen=True)

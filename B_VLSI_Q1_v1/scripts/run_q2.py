@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.data import load_blocks
 from src.fixed_io import (
+    save_bstar_state,
     save_fixed_history_csv,
     save_fixed_layout_csv,
     save_fixed_summary_json,
@@ -44,6 +45,8 @@ def build_fixed_sa_config(cfg: dict) -> FixedSAConfig:
         p_swap=float(op["swap"]),
         p_move=float(op["move"]),
         p_guided=float(op.get("guided", 0.20)),
+        p_row=float(op.get("row", 0.0)),
+        adaptive_operators=bool(sa.get("adaptive_operators", True)),
     )
 
 
@@ -63,6 +66,14 @@ def solve_dataset(
     dead_ratio = float(cfg.get("dead_space_ratio", 0.15))
     side = requested_outline_side(blocks.total_area, dead_ratio)
     spectral = cfg.get("spectral", {})
+    lp_cfg = cfg.get("elastic_lp", {})
+    spread_candidates = tuple(
+        float(value)
+        for value in spectral.get(
+            "spread_strength_candidates",
+            [spectral.get("spread_strength", 0.16)],
+        )
+    )
 
     solution = solve_fixed_outline(
         blocks,
@@ -72,6 +83,11 @@ def solve_dataset(
         np.random.default_rng(seed),
         spectral_variants=int(spectral.get("variants", 6)),
         spread_strength=float(spectral.get("spread_strength", 0.16)),
+        spread_strengths=spread_candidates,
+        axis_variants=int(spectral.get("axis_variants", 8)),
+        reweight_iterations=int(spectral.get("reweight_iterations", 1)),
+        enable_lp_refine=bool(lp_cfg.get("enabled", True)),
+        lp_time_limit_seconds=float(lp_cfg.get("time_limit_seconds", 20.0)),
     )
     return solution, blocks, netlist, cfg
 
@@ -87,6 +103,7 @@ def write_outputs(
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     save_fixed_layout_csv(blocks, solution, out_dir / "layout.csv")
+    save_bstar_state(solution.state, out_dir / "state.npz")
     save_fixed_history_csv(solution.history, out_dir / "history.csv")
     save_fixed_summary_json(
         dataset,
