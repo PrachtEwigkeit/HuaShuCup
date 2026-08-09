@@ -14,5 +14,6 @@
   "offset_y": 0.3414464915126132,
   "feasible": true,
   "overflow": 0.0,
-  "total_hpwl": 245306.3052842037
+  "total_hpwl": 245306.3052842037,
+  "solve_time_seconds": 6.84795280000003
 }

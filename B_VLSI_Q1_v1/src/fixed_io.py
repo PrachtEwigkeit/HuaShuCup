@@ -111,10 +111,13 @@ def save_fixed_summary_json(
     solution: FixedOutlineSolution,
     path: str | Path,
     requested_dead_space_ratio: float | None,
+    timings: dict[str, float] | None = None,
 ) -> None:
     obj = fixed_summary_dict(
         dataset, seed, blocks, solution, requested_dead_space_ratio
     )
+    if timings:
+        obj.update({key: float(value) for key, value in timings.items()})
     Path(path).write_text(
         json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8"
     )

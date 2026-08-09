@@ -3,9 +3,9 @@
   "seed": 42,
   "n_blocks": 300,
   "total_block_area": 273170,
-  "outline_side": 548,
+  "outline_side": 548.0,
   "effective_integer_coordinate_limit": 548,
-  "outline_area": 300304,
+  "outline_area": 300304.0,
   "realized_dead_space_ratio": 0.09933008749130567,
   "requested_dead_space_ratio": null,
   "packed_width": 548,
@@ -20,5 +20,8 @@
   "first_failed_side": null,
   "terminals_inside_outline": true,
   "minimum_is_heuristic": false,
-  "minimum_certified_by_lower_bound": true
+  "minimum_certified_by_lower_bound": true,
+  "q2_initial_solution_time_seconds": 43.8635483999999,
+  "q3_outline_search_time_seconds": 172.23650859999998,
+  "total_pipeline_time_seconds": 216.10247679999998
 }

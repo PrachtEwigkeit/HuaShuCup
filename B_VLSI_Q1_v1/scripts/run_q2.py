@@ -4,6 +4,7 @@ import argparse
 import math
 from pathlib import Path
 import sys
+import time
 
 import numpy as np
 import yaml
@@ -82,6 +83,7 @@ def write_outputs(
     blocks,
     solution: FixedOutlineSolution,
     out_dir: Path,
+    solve_time_seconds: float,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     save_fixed_layout_csv(blocks, solution, out_dir / "layout.csv")
@@ -93,6 +95,7 @@ def write_outputs(
         solution,
         out_dir / "summary.json",
         requested_dead_space_ratio=float(cfg.get("dead_space_ratio", 0.15)),
+        timings={"solve_time_seconds": solve_time_seconds},
     )
     plot_fixed_layout(
         blocks, solution, out_dir / "layout.png", annotate=(blocks.n <= 120)
@@ -101,11 +104,21 @@ def write_outputs(
 
 
 def run(dataset: str, seed: int, config_path: Path) -> Path:
+    solve_start = time.perf_counter()
     solution, blocks, _, cfg = solve_dataset(dataset, seed, config_path)
+    solve_time_seconds = time.perf_counter() - solve_start
     validate_tree(solution.state)
     validate_layout(blocks, solution.layout, check_pairs=True)
     out_dir = ROOT / "results" / "q2" / dataset / f"seed_{seed}"
-    write_outputs(dataset, seed, cfg, blocks, solution, out_dir)
+    write_outputs(
+        dataset,
+        seed,
+        cfg,
+        blocks,
+        solution,
+        out_dir,
+        solve_time_seconds,
+    )
 
     print("=" * 64)
     print(f"dataset       : {dataset}")
@@ -115,6 +128,7 @@ def run(dataset: str, seed: int, config_path: Path) -> Path:
     print(f"translation   : ({solution.score.offset_x:.3f}, {solution.score.offset_y:.3f})")
     print(f"feasible      : {solution.score.feasible}")
     print(f"total HPWL    : {solution.score.hpwl:.3f}")
+    print(f"solve time    : {solve_time_seconds:.3f} s")
     print(f"output        : {out_dir}")
     print("=" * 64)
     if not solution.score.feasible:

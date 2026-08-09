@@ -20,5 +20,8 @@
   "first_failed_side": null,
   "terminals_inside_outline": true,
   "minimum_is_heuristic": false,
-  "minimum_certified_by_lower_bound": true
+  "minimum_certified_by_lower_bound": true,
+  "q2_initial_solution_time_seconds": 6.221532199999956,
+  "q3_outline_search_time_seconds": 23.422372900000028,
+  "total_pipeline_time_seconds": 29.645163700000012
 }

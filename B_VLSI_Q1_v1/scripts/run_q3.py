@@ -6,6 +6,7 @@ import json
 import math
 from pathlib import Path
 import sys
+import time
 
 import numpy as np
 
@@ -26,7 +27,10 @@ from src.visualize import plot_fixed_convergence, plot_fixed_layout
 
 
 def run(dataset: str, seed: int, config_path: Path) -> Path:
+    pipeline_start = time.perf_counter()
+    q2_start = time.perf_counter()
     initial, blocks, netlist, cfg = solve_dataset(dataset, seed, config_path)
+    q2_initial_solution_time_seconds = time.perf_counter() - q2_start
     if not initial.score.feasible:
         raise RuntimeError("问题2初始轮廓尚不可行，无法启动问题3缩边搜索")
 
@@ -48,6 +52,7 @@ def run(dataset: str, seed: int, config_path: Path) -> Path:
 
     search_cfg = cfg.get("q3_search", {})
     spectral_cfg = cfg.get("spectral", {})
+    q3_start = time.perf_counter()
     result = search_minimum_outline(
         blocks,
         netlist,
@@ -60,6 +65,8 @@ def run(dataset: str, seed: int, config_path: Path) -> Path:
         terminals_inside_outline=bool(search_cfg.get("terminals_inside_outline", True)),
         probe_lower_bound=bool(search_cfg.get("probe_lower_bound", True)),
     )
+    q3_outline_search_time_seconds = time.perf_counter() - q3_start
+    total_pipeline_time_seconds = time.perf_counter() - pipeline_start
     solution = result.solution
     validate_tree(solution.state)
     validate_layout(blocks, solution.layout, check_pairs=True)
@@ -82,6 +89,9 @@ def run(dataset: str, seed: int, config_path: Path) -> Path:
             "minimum_certified_by_lower_bound": (
                 int(solution.outline_side) == result.lower_bound_side
             ),
+            "q2_initial_solution_time_seconds": q2_initial_solution_time_seconds,
+            "q3_outline_search_time_seconds": q3_outline_search_time_seconds,
+            "total_pipeline_time_seconds": total_pipeline_time_seconds,
         }
     )
     (out_dir / "summary.json").write_text(
@@ -99,6 +109,9 @@ def run(dataset: str, seed: int, config_path: Path) -> Path:
     print(f"dead ratio    : {result.dead_space_ratio:.8f}")
     print(f"packed        : {solution.layout.W} x {solution.layout.H}")
     print(f"total HPWL    : {solution.score.hpwl:.3f}")
+    print(f"q2 warm start : {q2_initial_solution_time_seconds:.3f} s")
+    print(f"q3 search     : {q3_outline_search_time_seconds:.3f} s")
+    print(f"total pipeline: {total_pipeline_time_seconds:.3f} s")
     print(f"failed side   : {result.first_failed_side}")
     print(f"output        : {out_dir}")
     print("=" * 64)
